@@ -14,7 +14,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SERVER_ID = int(os.getenv("GUILD_ID", "1397286059406000249"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1443610848391204955"))
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-SHEET_NAME = "Majetek sharing"
+SHEET_NAME = "Kapitál new"
 
 print("="*60)
 print("CAPITAL BOT")
@@ -52,7 +52,7 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        rows = sheet.range('B2:I32')
+        rows = sheet.range('A2:H20')
         print(f"✅ Got {len(rows)} cells")
         
         if not rows:
@@ -62,7 +62,7 @@ def get_capital_data():
         for i in range(0, len(rows), 8):
             row_data = rows[i:i+8]
             
-            if len(row_data) >= 8 and row_data[0].value and str(row_data[0].value).strip():
+            if len(row_data) >= 1 and row_data[0].value and str(row_data[0].value).strip():
                 try:
                     name = str(row_data[0].value).strip()
                     qty = float(str(row_data[1].value or 0).replace(",", "."))
@@ -72,7 +72,7 @@ def get_capital_data():
                     ad = float(str(row_data[5].value or 0).replace(",", "."))
                     zustatek = float(str(row_data[6].value or 0).replace(",", "."))
                     
-                    if qty > 0:
+                    if qty > 0 or name.lower() not in ['']:
                         data.append({
                             "name": name,
                             "qty": qty,
@@ -83,7 +83,7 @@ def get_capital_data():
                             "zustatek": zustatek
                         })
                 except (ValueError, TypeError) as e:
-                    print(f"Parse error: {e}")
+                    print(f"Parse error for {name}: {e}")
                     continue
         
         print(f"✅ Got {len(data)} rows of data")
