@@ -127,11 +127,25 @@ def get_capital_data():
         traceback.print_exc()
         return None
 
-async def send_embeds(ctx, data):
-    """Pošli data jako barevné Discord embeds"""
+def format_table(data):
+    """Formatuj tabulku pro zobrazení"""
     if not data:
-        await ctx.send("❌ Žádná data k zobrazení")
-        return
+        return "No data available"
+    
+    lines = []
+    lines.append(f"{'Jmeno':<18} {'Akcie':>6} {'CASH':>14} {'itemy':>12} {'Adeny':>12} {'Nárok':>12}")
+    lines.append("-" * 85)
+    
+    for item in data:
+        # Formátuj CASH a Nárok v účetním formátu (tisícioddělovač)
+        cash_fmt = format_accounting(item['cash'])
+        narok_fmt = format_accounting(item['narok'])
+        
+        # Formátuj itemy a Adeny v záporném účetním formátu
+        itemy_fmt = f"-{format_accounting(item['itemy'])}" if item['itemy'] > 0 else "0"
+        adeny_fmt = f"-{format_accounting(item['adeny'])}" if item['adeny'] > 0 else "0"
+        
+        lines.append(f"{item['name'][:17]:<18} {item['akcie']:>6.0f} {cash_fmt:>14} {itemy_fmt:>12} {adeny_fmt:>12} {narok_fmt:>12}")
     
     total_akcie = sum(d["akcie"] for d in data)
     total_cash = sum(d["cash"] for d in data)
@@ -139,66 +153,41 @@ async def send_embeds(ctx, data):
     total_adeny = sum(d["adeny"] for d in data)
     total_narok = sum(d["narok"] for d in data)
     
-    # Hlavní embed s totály
-    main_embed = discord.Embed(
-        title="💰 KAPITAL CPD",
-        description="Přehled majetku hráčů",
-        color=discord.Color.gold(),
-        timestamp=datetime.now()
-    )
+    # Formátuj totály
+    total_cash_fmt = format_accounting(total_cash)
+    total_narok_fmt = format_accounting(total_narok)
+    total_itemy_fmt = f"-{format_accounting(total_itemy)}" if total_itemy > 0 else "0"
+    total_adeny_fmt = f"-{format_accounting(total_adeny)}" if total_adeny > 0 else "0"
     
-    main_embed.add_field(
-        name="📊 Celkový Přehled",
-        value=f"**Akcie:** `{total_akcie:,.0f}`\n"
-              f"**CASH:** `{format_accounting(total_cash)}`\n"
-              f"**itemy:** `-{format_accounting(total_itemy)}`\n"
-              f"**Adeny:** `-{format_accounting(total_adeny)}`\n"
-              f"**Nárok:** `{format_accounting(total_narok)}`",
-        inline=False
-    )
+    lines.append("-" * 85)
+    lines.append(f"{'CELKEM':<18} {total_akcie:>6.0f} {total_cash_fmt:>14} {total_itemy_fmt:>12} {total_adeny_fmt:>12} {total_narok_fmt:>12}")
     
-    await ctx.send(embed=main_embed)
-    
-    # Divide data na stranky (po 10 hráčích na embed)
-    chunk_size = 10
-    for chunk_idx in range(0, len(data), chunk_size):
-        chunk = data[chunk_idx:chunk_idx + chunk_size]
-        
-        # Vytvoř embed pro tuto skupinu
-        color = discord.Color.from_rgb(52, 211, 153) if chunk_idx == 0 else discord.Color.from_rgb(59, 130, 246)
-        embed = discord.Embed(
-            title=f"👥 Hráči ({chunk_idx // chunk_size + 1})",
-            color=color,
-            timestamp=datetime.now()
-        )
-        
-        # Přidej hráče do fieldu
-        for item in chunk:
-            cash_fmt = format_accounting(item['cash'])
-            narok_fmt = format_accounting(item['narok'])
-            itemy_fmt = f"-{format_accounting(item['itemy'])}" if item['itemy'] > 0 else "0"
-            adeny_fmt = f"-{format_accounting(item['adeny'])}" if item['adeny'] > 0 else "0"
-            
-            value = (f"**Akcie:** {item['akcie']:.0f}\n"
-                    f"**CASH:** {cash_fmt}\n"
-                    f"**itemy:** {itemy_fmt}\n"
-                    f"**Adeny:** {adeny_fmt}\n"
-                    f"**Nárok:** {narok_fmt}")
-            
-            embed.add_field(
-                name=f"🎮 {item['name']}",
-                value=value,
-                inline=True
-            )
-        
-        await ctx.send(embed=embed)
+    return "\n".join(lines)
 
 @bot.command(name="capital")
 async def capital_command(ctx):
     print("Command: !capital")
     data = get_capital_data()
     if data:
-        await send_embeds(ctx, data)
+        # Vytvoř embed
+        embed = discord.Embed(
+            title="💰 KAPITAL CPD",
+            description="Přehled majetku hráčů",
+            color=discord.Color.gold(),
+            timestamp=datetime.now()
+        )
+        
+        # Formatuj tabulku
+        table_text = format_table(data)
+        
+        # Přidej tabulku do embedu jako code block
+        embed.add_field(
+            name="📊 Detailní Přehled",
+            value=f"```\n{table_text}\n```",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
     else:
         await ctx.send("❌ Nemohu přečíst data z Google Sheets")
 
