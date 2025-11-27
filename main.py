@@ -14,11 +14,13 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SERVER_ID = int(os.getenv("GUILD_ID", "1397286059406000249"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1443610848391204955"))
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+SHEET_NAME = "Majetek sharing"
 
 print("="*60)
 print("CAPITAL BOT")
 print("="*60)
 print(f"SHEET_ID: {SHEET_ID}")
+print(f"SHEET_NAME: {SHEET_NAME}")
 
 def get_sheets_client():
     try:
@@ -47,10 +49,10 @@ def get_capital_data():
             return None
         
         print(f"Opening sheet {SHEET_ID}...")
-        sheet = client.open_by_key(SHEET_ID).worksheet("Kapital new")
+        sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        rows = sheet.range('B4:I21')
+        rows = sheet.range('B2:I32')
         print(f"✅ Got {len(rows)} cells")
         
         if not rows:
