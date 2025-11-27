@@ -52,7 +52,7 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        rows = sheet.range('A2:H20')
+        rows = sheet.range('B2:I32')
         print(f"✅ Got {len(rows)} cells")
         
         if not rows:
