@@ -127,40 +127,18 @@ def get_capital_data():
         traceback.print_exc()
         return None
 
-def format_table(data):
-    """Formatuj tabulku pro zobrazení"""
-    if not data:
-        return "No data available"
-    
+def format_table_short(data):
+    """Formatuj krátkou tabulku pro jeden field"""
     lines = []
-    lines.append(f"{'Jmeno':<18} {'Akcie':>6} {'CASH':>14} {'itemy':>12} {'Adeny':>12} {'Nárok':>12}")
-    lines.append("-" * 85)
+    lines.append(f"{'Jmeno':<15} {'Akcie':>5} {'CASH':>13} {'itemy':>11} {'Adeny':>11}")
+    lines.append("-" * 68)
     
     for item in data:
-        # Formátuj CASH a Nárok v účetním formátu (tisícioddělovač)
         cash_fmt = format_accounting(item['cash'])
-        narok_fmt = format_accounting(item['narok'])
-        
-        # Formátuj itemy a Adeny v záporném účetním formátu
         itemy_fmt = f"-{format_accounting(item['itemy'])}" if item['itemy'] > 0 else "0"
         adeny_fmt = f"-{format_accounting(item['adeny'])}" if item['adeny'] > 0 else "0"
         
-        lines.append(f"{item['name'][:17]:<18} {item['akcie']:>6.0f} {cash_fmt:>14} {itemy_fmt:>12} {adeny_fmt:>12} {narok_fmt:>12}")
-    
-    total_akcie = sum(d["akcie"] for d in data)
-    total_cash = sum(d["cash"] for d in data)
-    total_itemy = sum(d["itemy"] for d in data)
-    total_adeny = sum(d["adeny"] for d in data)
-    total_narok = sum(d["narok"] for d in data)
-    
-    # Formátuj totály
-    total_cash_fmt = format_accounting(total_cash)
-    total_narok_fmt = format_accounting(total_narok)
-    total_itemy_fmt = f"-{format_accounting(total_itemy)}" if total_itemy > 0 else "0"
-    total_adeny_fmt = f"-{format_accounting(total_adeny)}" if total_adeny > 0 else "0"
-    
-    lines.append("-" * 85)
-    lines.append(f"{'CELKEM':<18} {total_akcie:>6.0f} {total_cash_fmt:>14} {total_itemy_fmt:>12} {total_adeny_fmt:>12} {total_narok_fmt:>12}")
+        lines.append(f"{item['name'][:14]:<15} {item['akcie']:>5.0f} {cash_fmt:>13} {itemy_fmt:>11} {adeny_fmt:>11}")
     
     return "\n".join(lines)
 
@@ -169,7 +147,13 @@ async def capital_command(ctx):
     print("Command: !capital")
     data = get_capital_data()
     if data:
-        # Vytvoř embed
+        total_akcie = sum(d["akcie"] for d in data)
+        total_cash = sum(d["cash"] for d in data)
+        total_itemy = sum(d["itemy"] for d in data)
+        total_adeny = sum(d["adeny"] for d in data)
+        total_narok = sum(d["narok"] for d in data)
+        
+        # Hlavní embed
         embed = discord.Embed(
             title="💰 KAPITAL CPD",
             description="Přehled majetku hráčů",
@@ -177,15 +161,34 @@ async def capital_command(ctx):
             timestamp=datetime.now()
         )
         
-        # Formatuj tabulku
-        table_text = format_table(data)
+        # Totály
+        total_cash_fmt = format_accounting(total_cash)
+        total_narok_fmt = format_accounting(total_narok)
+        total_itemy_fmt = f"-{format_accounting(total_itemy)}" if total_itemy > 0 else "0"
+        total_adeny_fmt = f"-{format_accounting(total_adeny)}" if total_adeny > 0 else "0"
         
-        # Přidej tabulku do embedu jako code block
         embed.add_field(
-            name="📊 Detailní Přehled",
-            value=f"```\n{table_text}\n```",
+            name="📊 Celkem",
+            value=f"**Akcie:** `{total_akcie:,.0f}`\n"
+                  f"**CASH:** `{total_cash_fmt}`\n"
+                  f"**itemy:** `{total_itemy_fmt}`\n"
+                  f"**Adeny:** `{total_adeny_fmt}`\n"
+                  f"**Nárok:** `{total_narok_fmt}`",
             inline=False
         )
+        
+        # Rozděl hráče na skupiny (max 800 znaků na field)
+        chunk_size = 7
+        for chunk_idx in range(0, len(data), chunk_size):
+            chunk = data[chunk_idx:chunk_idx + chunk_size]
+            table = format_table_short(chunk)
+            
+            page_num = (chunk_idx // chunk_size) + 1
+            embed.add_field(
+                name=f"👥 Hráči ({page_num})",
+                value=f"```\n{table}\n```",
+                inline=False
+            )
         
         await ctx.send(embed=embed)
     else:
