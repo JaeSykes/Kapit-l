@@ -124,27 +124,36 @@ def format_table(data):
     if not data:
         return "No data available"
     
-    result = "KAPITAL CPD\n"
-    result += "=" * 120 + "\n"
-    result += f"{'Jmeno':<20} {'Qty':>8} {'%':>7} {'$ Aden':>16} {'-it':>12} {'-ad':>12} {'Zustatek':>16}\n"
-    result += "-" * 120 + "\n"
+    # Zkrácená verze - bez nadpisu
+    lines = []
+    lines.append(f"{'Jmeno':<18} {'Qty':>6} {'%':>8} {'USD':>12} {'IT':>12} {'AD':>12}")
+    lines.append("-" * 80)
     
     for item in data:
-        result += f"{item['name'][:19]:<20} {item['qty']:>8.0f} {item['pct']:>6.2f}% {item['usd']:>15.0f} {item['it']:>11.0f} {item['ad']:>11.0f} {item['zustatek']:>15.0f}\n"
+        lines.append(f"{item['name'][:17]:<18} {item['qty']:>6.0f} {item['pct']:>7.1f}% {item['usd']:>11.0f} {item['it']:>11.0f} {item['ad']:>11.0f}")
     
     total_qty = sum(d["qty"] for d in data)
     total_pct = sum(d["pct"] for d in data)
     total_usd = sum(d["usd"] for d in data)
     total_it = sum(d["it"] for d in data)
     total_ad = sum(d["ad"] for d in data)
-    total_zust = sum(d["zustatek"] for d in data)
     
-    result += "-" * 120 + "\n"
-    result += f"{'CELKEM':<20} {total_qty:>8.0f} {total_pct:>6.2f}% {total_usd:>15.0f} {total_it:>11.0f} {total_ad:>11.0f} {total_zust:>15.0f}\n"
-    result += "=" * 120 + "\n"
-    result += f"Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    lines.append("-" * 80)
+    lines.append(f"{'CELKEM':<18} {total_qty:>6.0f} {total_pct:>7.1f}% {total_usd:>11.0f} {total_it:>11.0f} {total_ad:>11.0f}")
     
-    return result
+    return "\n".join(lines)
+
+async def send_long_message(ctx, title, content):
+    """Pošli dlouhou zprávu v několika blocích"""
+    # Hlavní tabulka
+    msg = f"```\n{content}\n```"
+    
+    if len(msg) <= 2000:
+        await ctx.send(msg)
+    else:
+        # Rozděl na části
+        await ctx.send(f"```\n{title}\n{content[:800]}...\n```")
+        await ctx.send(f"```\n...{content[800:]}\n```")
 
 @bot.command(name="capital")
 async def capital_command(ctx):
@@ -152,7 +161,7 @@ async def capital_command(ctx):
     data = get_capital_data()
     if data:
         table_text = format_table(data)
-        await ctx.send(f"```\n{table_text}\n```")
+        await send_long_message(ctx, "KAPITAL CPD", table_text)
     else:
         await ctx.send("❌ Cannot read data from Google Sheets")
 
