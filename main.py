@@ -5,6 +5,7 @@ import gspread
 import json
 import os
 from datetime import datetime
+import re
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -42,6 +43,25 @@ def get_sheets_client():
         print(f"❌ Error: {e}")
         return None
 
+def clean_number(value):
+    """Vyčistit číslo - odstranit speciální znaky a formátování"""
+    if not value:
+        return 0.0
+    
+    # Konvertuj na string a odstraň všechny non-breaking spaces
+    s = str(value).replace('\xa0', '').replace(' ', '').strip()
+    
+    # Odstraň všechny znaky která nejsou čísla, tečka, minus
+    s = re.sub(r'[^\d.,\-]', '', s)
+    
+    # Zaměň čárku za tečku
+    s = s.replace(',', '.')
+    
+    try:
+        return float(s) if s and s != '-' else 0.0
+    except:
+        return 0.0
+
 def get_capital_data():
     try:
         client = get_sheets_client()
@@ -52,7 +72,7 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        rows = sheet.range('B2:I32')
+        rows = sheet.range('B2:I25')
         print(f"✅ Got {len(rows)} cells")
         
         if not rows:
@@ -62,17 +82,22 @@ def get_capital_data():
         for i in range(0, len(rows), 8):
             row_data = rows[i:i+8]
             
-            if len(row_data) >= 1 and row_data[0].value and str(row_data[0].value).strip():
+            if len(row_data) >= 1 and row_data[0].value:
+                name = str(row_data[0].value).strip()
+                
+                # Přeskočit prázdné řádky, nadpisy a sumy
+                if not name or name.lower() in ['celkem', 'celk', 'suma', ''] or 'celkem' in name.lower():
+                    continue
+                
                 try:
-                    name = str(row_data[0].value).strip()
-                    qty = float(str(row_data[1].value or 0).replace(",", "."))
-                    pct = float(str(row_data[2].value or 0).replace(",", "."))
-                    usd = float(str(row_data[3].value or 0).replace(",", "."))
-                    it = float(str(row_data[4].value or 0).replace(",", "."))
-                    ad = float(str(row_data[5].value or 0).replace(",", "."))
-                    zustatek = float(str(row_data[6].value or 0).replace(",", "."))
+                    qty = clean_number(row_data[1].value if len(row_data) > 1 else 0)
+                    pct = clean_number(row_data[2].value if len(row_data) > 2 else 0)
+                    usd = clean_number(row_data[3].value if len(row_data) > 3 else 0)
+                    it = clean_number(row_data[4].value if len(row_data) > 4 else 0)
+                    ad = clean_number(row_data[5].value if len(row_data) > 5 else 0)
+                    zustatek = clean_number(row_data[6].value if len(row_data) > 6 else 0)
                     
-                    if qty > 0 or name.lower() not in ['']:
+                    if qty > 0:
                         data.append({
                             "name": name,
                             "qty": qty,
@@ -82,7 +107,8 @@ def get_capital_data():
                             "ad": ad,
                             "zustatek": zustatek
                         })
-                except (ValueError, TypeError) as e:
+                        print(f"✅ {name}: qty={qty}, pct={pct}")
+                except Exception as e:
                     print(f"Parse error for {name}: {e}")
                     continue
         
