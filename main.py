@@ -1,7 +1,8 @@
 import discord
 from discord.ext import commands, tasks
+from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import Request
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 import json
 import os
 from datetime import datetime
@@ -25,8 +26,8 @@ def get_sheets_client():
     try:
         creds_json = os.getenv("GOOGLE_CREDENTIALS")
         creds_dict = json.loads(creds_json)
-        scope = ["https://spreadsheets.google.com/auth/spreadsheets"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        scope = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
         client = gspread.authorize(creds)
         return client
     except Exception as e:
