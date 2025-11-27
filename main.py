@@ -7,8 +7,9 @@ import os
 from datetime import datetime
 
 # ═══════════════════════════════════════════════════════════════
-# CAPITAL BOT - L2REBORN CPD
-# Live tabulka s aktualizací bez nových zpráv
+# CAPITAL BOT - L2REBORN CPD (FINÁLNÍ VERZE)
+# Čte konkrétní rozsah: řádky 4-21, sloupce B-I
+# List: "Kapitál new"
 # ═══════════════════════════════════════════════════════════════
 
 # Setup
@@ -19,13 +20,13 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Konfigurace
 SERVER_ID = int(os.getenv("GUILD_ID", "1397286059406000249"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1443362011957170216"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1443610848391204955"))
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 MESSAGE_IDS_FILE = "capital_message_ids.json"
 UPDATE_INTERVAL = 3  # minuty
 
 print("="*60)
-print("🚀 CAPITAL BOT - Inicializace")
+print("🚀 CAPITAL BOT - Inicializace (Finální verze)")
 print("="*60)
 
 # ═══════════════════════════════════════════════════════════════
@@ -46,41 +47,48 @@ def get_sheets_client():
         return None
 
 def get_capital_data():
-    """Čtení dat z Google Sheets"""
+    """Čtení dat z konkrétního rozsahu Google Sheets"""
     try:
         client = get_sheets_client()
         if not client:
             return None
         
-        sheet = client.open_by_key(SHEET_ID).sheet1
-        rows = sheet.get_all_values()
+        sheet = client.open_by_key(SHEET_ID).worksheet("Kapitál new")
         
-        if len(rows) < 2:
-            print("⚠️  Sheet je prázdný")
+        # Čtení rozsahu: B4:I21 (hráči bez headeru)
+        rows = sheet.range('B4:I21')
+        
+        if not rows:
+            print("⚠️  Rozsah je prázdný")
             return None
         
         data = []
-        for i, row in enumerate(rows[1:], start=2):
-            if len(row) >= 7 and row[0].strip():
+        
+        # Konverze z range() na řádky
+        for i in range(0, len(rows), 8):  # 8 sloupců (B-I)
+            row_data = rows[i:i+8]
+            
+            if len(row_data) >= 8 and row_data[0].value and str(row_data[0].value).strip():
                 try:
-                    name = row[0].strip()
-                    qty = float(row[1].replace(",", ".")) if row[1] else 0
-                    pct = float(row[2].replace(",", ".")) if row[2] else 0
-                    usd = float(row[3].replace(",", ".")) if row[3] else 0
-                    it = float(row[4].replace(",", ".")) if row[4] else 0
-                    ad = float(row[5].replace(",", ".")) if row[5] else 0
-                    zustatek = float(row[6].replace(",", ".")) if row[6] else 0
+                    name = str(row_data[0].value).strip()
+                    qty = float(str(row_data[1].value or 0).replace(",", "."))
+                    pct = float(str(row_data[2].value or 0).replace(",", "."))
+                    usd = float(str(row_data[3].value or 0).replace(",", "."))
+                    it = float(str(row_data[4].value or 0).replace(",", "."))
+                    ad = float(str(row_data[5].value or 0).replace(",", "."))
+                    zustatek = float(str(row_data[6].value or 0).replace(",", "."))
                     
-                    data.append({
-                        "name": name,
-                        "qty": qty,
-                        "pct": pct,
-                        "usd": usd,
-                        "it": it,
-                        "ad": ad,
-                        "zustatek": zustatek
-                    })
-                except ValueError:
+                    if qty > 0:  # Jen hráče s qty > 0
+                        data.append({
+                            "name": name,
+                            "qty": qty,
+                            "pct": pct,
+                            "usd": usd,
+                            "it": it,
+                            "ad": ad,
+                            "zustatek": zustatek
+                        })
+                except (ValueError, TypeError):
                     continue
         
         return data if data else None
@@ -97,21 +105,15 @@ def create_capital_table(data):
     if not data:
         return "``````"
     
-    # Filtruj jen řádky kde je qty > 0
-    data_filtered = [d for d in data if d["qty"] > 0]
-    
-    if not data_filtered:
-        return "``````"
-    
     # Header
     table = "```
-    table += "📊 KAPITÁL CPD - ÚPLNÝ PŘEHLED\n"
+    table += "📊 KAPITÁL CP - ÚPLNÝ PŘEHLED\n"
     table += "═" * 135 + "\n"
     table += f"{'Jméno':<20} │ {'Qty':>8} │ {'%':>7} │ {'$ (Aden)':>16} │ {'-it (K)':>12} │ {'-ad (K)':>12} │ {'= (Zůst.)':>16}\n"
     table += "─" * 135 + "\n"
     
     # Data řádky
-    for item in data_filtered:
+    for item in data:
         name_fmt = item["name"][:19].ljust(20)
         qty_fmt = f"{item['qty']:>8.0f}"
         pct_fmt = f"{item['pct']:>6.2f}%"
@@ -123,12 +125,12 @@ def create_capital_table(data):
         table += f"{name_fmt} │ {qty_fmt} │ {pct_fmt} │ {usd_fmt} │ {it_fmt} │ {ad_fmt} │ {zust_fmt}\n"
     
     # Total řádek
-    total_qty = sum(d["qty"] for d in data_filtered)
-    total_pct = sum(d["pct"] for d in data_filtered)
-    total_usd = sum(d["usd"] for d in data_filtered)
-    total_it = sum(d["it"] for d in data_filtered)
-    total_ad = sum(d["ad"] for d in data_filtered)
-    total_zust = sum(d["zustatek"] for d in data_filtered)
+    total_qty = sum(d["qty"] for d in data)
+    total_pct = sum(d["pct"] for d in data)
+    total_usd = sum(d["usd"] for d in data)
+    total_it = sum(d["it"] for d in data)
+    total_ad = sum(d["ad"] for d in data)
+    total_zust = sum(d["zustatek"] for d in data)
     
     table += "─" * 135 + "\n"
     table += f"{'CELKEM':<20} │ {total_qty:>8.0f} │ {total_pct:>6.2f}% │ {total_usd:>15.0f} │ {total_it:>11.0f} │ {total_ad:>11.0f} │ {total_zust:>15.0f}\n"
@@ -256,6 +258,8 @@ async def on_ready():
         if channel:
             print(f"✅ Kanál: {channel.name} ({CHANNEL_ID})")
             print(f"✅ Update interval: {UPDATE_INTERVAL} minut")
+            print(f"✅ List: 'Kapitál new'")
+            print(f"✅ Rozsah: B4:I21")
             
             # První update
             await update_capital_display()
