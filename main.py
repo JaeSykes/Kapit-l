@@ -17,6 +17,9 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1443610848391204955"))
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 SHEET_NAME = "Majetek sharing"
 
+# Globální proměnné pro automatickou aktualizaci
+message_ids = {}  # {f"{server_id}_{channel_id}": [main_msg_id, msg_id1, msg_id2, ...]}
+
 print("="*60)
 print("CAPITAL BOT - CZM8")
 print("="*60)
@@ -133,6 +136,15 @@ def get_part_name(chunk_idx, chunk_size, total_chunks):
     else:
         return f"Členové ({part_num}. část)"
 
+def create_embed(title, description, color, timestamp):
+    """Vytvoří embed"""
+    return discord.Embed(
+        title=title,
+        description=description,
+        color=color,
+        timestamp=timestamp
+    )
+
 async def send_embeds(ctx, data):
     """Pošli data jako barevné Discord embeds"""
     if not data:
@@ -144,11 +156,11 @@ async def send_embeds(ctx, data):
     total_narok = sum(d["narok"] for d in data)
     
     # Hlavní embed s totály
-    main_embed = discord.Embed(
-        title="💰 Kapitál CZM8",
-        description="Přehled majetku hráčů",
-        color=discord.Color.gold(),
-        timestamp=datetime.now()
+    main_embed = create_embed(
+        "💰 Kapitál CZM8",
+        "Přehled majetku hráčů",
+        discord.Color.gold(),
+        datetime.now()
     )
     
     main_embed.add_field(
@@ -159,7 +171,11 @@ async def send_embeds(ctx, data):
         inline=False
     )
     
-    await ctx.send(embed=main_embed)
+    main_msg = await ctx.send(embed=main_embed)
+    
+    # Ulož ID hlavní zprávy
+    key = f"{ctx.guild.id}_{ctx.channel.id}"
+    message_ids[key] = [main_msg.id]
     
     # Divide data na stranky (po 9 hráčích na embed)
     chunk_size = 9
@@ -172,10 +188,11 @@ async def send_embeds(ctx, data):
         color = discord.Color.from_rgb(52, 211, 153) if chunk_idx == 0 else discord.Color.from_rgb(59, 130, 246)
         part_name = get_part_name(chunk_idx, chunk_size, total_chunks)
         
-        embed = discord.Embed(
-            title=f"👥 {part_name}",
-            color=color,
-            timestamp=datetime.now()
+        embed = create_embed(
+            f"👥 {part_name}",
+            "",
+            color,
+            datetime.now()
         )
         
         # Přidej hráče do fieldu
@@ -192,7 +209,118 @@ async def send_embeds(ctx, data):
                 inline=True
             )
         
-        await ctx.send(embed=embed)
+        msg = await ctx.send(embed=embed)
+        message_ids[key].append(msg.id)
+
+async def update_embeds(data):
+    """Aktualizuj existující zprávy (bez smazání starých)"""
+    if not data:
+        print("❌ Žádná data k aktualizaci")
+        return
+    
+    total_akcie = sum(d["akcie"] for d in data)
+    total_pct = sum(d["pct"] for d in data)
+    total_narok = sum(d["narok"] for d in data)
+    
+    try:
+        # Najdi kanál a zprávy
+        guild = bot.get_guild(SERVER_ID)
+        channel = guild.get_channel(CHANNEL_ID)
+        
+        if not channel:
+            print("❌ Kanál nenalezen!")
+            return
+        
+        key = f"{SERVER_ID}_{CHANNEL_ID}"
+        
+        if key not in message_ids or not message_ids[key]:
+            print("⚠️ Zprávy ještě nebyly vytvořeny. Spusť !capital nejdříve.")
+            return
+        
+        # Aktualizuj hlavní zprávu
+        try:
+            main_msg = await channel.fetch_message(message_ids[key][0])
+            
+            main_embed = create_embed(
+                "💰 Kapitál CZM8",
+                "Přehled majetku hráčů",
+                discord.Color.gold(),
+                datetime.now()
+            )
+            
+            main_embed.add_field(
+                name="📊 Celkový Přehled",
+                value=f"**Akcie:** `{total_akcie:,.0f}`\n"
+                      f"**%:** `{total_pct:,.1f}`\n"
+                      f"**Nárok:** `{format_accounting(total_narok)}`",
+                inline=False
+            )
+            
+            await main_msg.edit(embed=main_embed)
+            print("✅ Hlavní zpráva aktualizována")
+        except Exception as e:
+            print(f"❌ Chyba při aktualizaci hlavní zprávy: {e}")
+        
+        # Aktualizuj zprávy s hráči
+        chunk_size = 9
+        total_chunks = (len(data) + chunk_size - 1) // chunk_size
+        
+        for chunk_idx in range(0, len(data), chunk_size):
+            chunk = data[chunk_idx:chunk_idx + chunk_size]
+            msg_index = (chunk_idx // chunk_size) + 1
+            
+            if msg_index >= len(message_ids[key]):
+                print(f"⚠️ Zpráva {msg_index} neexistuje")
+                continue
+            
+            try:
+                msg = await channel.fetch_message(message_ids[key][msg_index])
+                
+                color = discord.Color.from_rgb(52, 211, 153) if chunk_idx == 0 else discord.Color.from_rgb(59, 130, 246)
+                part_name = get_part_name(chunk_idx, chunk_size, total_chunks)
+                
+                embed = create_embed(
+                    f"👥 {part_name}",
+                    "",
+                    color,
+                    datetime.now()
+                )
+                
+                for item in chunk:
+                    narok_fmt = format_accounting(item['narok'])
+                    
+                    value = (f"**Akcie:** {item['akcie']:.0f}\n"
+                            f"**%:** {item['pct']:.2f}\n"
+                            f"**Nárok:** {narok_fmt}")
+                    
+                    embed.add_field(
+                        name=f"🎮 {item['name']}",
+                        value=value,
+                        inline=True
+                    )
+                
+                await msg.edit(embed=embed)
+                print(f"✅ Zpráva {msg_index} aktualizována")
+            except Exception as e:
+                print(f"❌ Chyba při aktualizaci zprávy {msg_index}: {e}")
+    
+    except Exception as e:
+        print(f"❌ Chyba při aktualizaci: {e}")
+
+@tasks.loop(minutes=30)
+async def auto_update():
+    """Automaticky aktualizuj zprávy každých 30 minut"""
+    print("\n🔄 Automatická aktualizace...")
+    data = get_capital_data()
+    if data:
+        await update_embeds(data)
+    else:
+        print("❌ Nelze přečíst data z Google Sheets")
+
+@auto_update.before_loop
+async def before_auto_update():
+    """Čekej než je bot připraven"""
+    await bot.wait_until_ready()
 
 @bot.command(name="capital")
 async def capital_command(ctx):
@@ -219,6 +347,11 @@ async def on_ready():
     print("="*60)
     print("READY")
     print("="*60)
+    
+    # Spusť automatickou aktualizaci
+    if not auto_update.is_running():
+        auto_update.start()
+        print("🔄 Automatická aktualizace spuštěna (každých 30 minut)")
 
 token = os.getenv("DISCORD_TOKEN")
 if token:
