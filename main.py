@@ -14,7 +14,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SERVER_ID = int(os.getenv("GUILD_ID", "1397286059406000249"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1443610848391204955"))
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-SHEET_NAME = "Kapitál new"
+SHEET_NAME = "Majetek sharing"
 
 print("="*60)
 print("CAPITAL BOT")
