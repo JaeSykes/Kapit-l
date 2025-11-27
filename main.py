@@ -4,8 +4,12 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
 import os
-import asyncio
 from datetime import datetime
+
+# ═══════════════════════════════════════════════════════════════
+# CAPITAL BOT - L2REBORN CPD
+# Live tabulka s aktualizací bez nových zpráv
+# ═══════════════════════════════════════════════════════════════
 
 # Setup
 intents = discord.Intents.default()
@@ -20,8 +24,16 @@ SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 MESSAGE_IDS_FILE = "capital_message_ids.json"
 UPDATE_INTERVAL = 3  # minuty
 
-# Google Sheets setup
+print("="*60)
+print("🚀 CAPITAL BOT - Inicializace")
+print("="*60)
+
+# ═══════════════════════════════════════════════════════════════
+# GOOGLE SHEETS
+# ═══════════════════════════════════════════════════════════════
+
 def get_sheets_client():
+    """Připojení k Google Sheets"""
     try:
         creds_json = os.getenv("GOOGLE_CREDENTIALS")
         creds_dict = json.loads(creds_json)
@@ -33,23 +45,8 @@ def get_sheets_client():
         print(f"❌ Chyba při připojení k Google Sheets: {e}")
         return None
 
-# Načtení ID zpráv
-def load_message_ids():
-    if os.path.exists(MESSAGE_IDS_FILE):
-        try:
-            with open(MESSAGE_IDS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            pass
-    return {"capital_message": None}
-
-# Uložení ID zpráv
-def save_message_ids(msg_ids):
-    with open(MESSAGE_IDS_FILE, "w", encoding="utf-8") as f:
-        json.dump(msg_ids, f, ensure_ascii=False, indent=2)
-
-# Čtení dat z Google Sheets
 def get_capital_data():
+    """Čtení dat z Google Sheets"""
     try:
         client = get_sheets_client()
         if not client:
@@ -59,20 +56,20 @@ def get_capital_data():
         rows = sheet.get_all_values()
         
         if len(rows) < 2:
+            print("⚠️  Sheet je prázdný")
             return None
         
-        # Přeskočit header (řádek 0)
         data = []
-        for row in rows[1:]:
-            if len(row) >= 8 and row[0].strip():
+        for i, row in enumerate(rows[1:], start=2):
+            if len(row) >= 7 and row[0].strip():
                 try:
                     name = row[0].strip()
-                    qty = float(row[1].replace(",", ".")) if len(row) > 1 else 0
-                    pct = float(row[2].replace(",", ".")) if len(row) > 2 else 0
-                    usd = float(row[3].replace(",", ".")) if len(row) > 3 else 0
-                    it = float(row[4].replace(",", ".")) if len(row) > 4 else 0
-                    ad = float(row[5].replace(",", ".")) if len(row) > 5 else 0
-                    zustatek = float(row[6].replace(",", ".")) if len(row) > 6 else 0
+                    qty = float(row[1].replace(",", ".")) if row[1] else 0
+                    pct = float(row[2].replace(",", ".")) if row[2] else 0
+                    usd = float(row[3].replace(",", ".")) if row[3] else 0
+                    it = float(row[4].replace(",", ".")) if row[4] else 0
+                    ad = float(row[5].replace(",", ".")) if row[5] else 0
+                    zustatek = float(row[6].replace(",", ".")) if row[6] else 0
                     
                     data.append({
                         "name": name,
@@ -83,28 +80,35 @@ def get_capital_data():
                         "ad": ad,
                         "zustatek": zustatek
                     })
-                except:
+                except ValueError:
                     continue
         
-        return data
+        return data if data else None
     except Exception as e:
         print(f"❌ Chyba při čtení Sheets: {e}")
         return None
 
-# Vytvoření tabulky jako text
+# ═══════════════════════════════════════════════════════════════
+# FORMÁTOVÁNÍ TABULKY
+# ═══════════════════════════════════════════════════════════════
+
 def create_capital_table(data):
+    """Vytvoření úplné tabulky jako text"""
     if not data:
         return "``````"
     
     # Filtruj jen řádky kde je qty > 0
     data_filtered = [d for d in data if d["qty"] > 0]
     
+    if not data_filtered:
+        return "``````"
+    
     # Header
     table = "```
     table += "📊 KAPITÁL CPD - ÚPLNÝ PŘEHLED\n"
-    table += "═" * 130 + "\n"
+    table += "═" * 135 + "\n"
     table += f"{'Jméno':<20} │ {'Qty':>8} │ {'%':>7} │ {'$ (Aden)':>16} │ {'-it (K)':>12} │ {'-ad (K)':>12} │ {'= (Zůst.)':>16}\n"
-    table += "─" * 130 + "\n"
+    table += "─" * 135 + "\n"
     
     # Data řádky
     for item in data_filtered:
@@ -126,16 +130,35 @@ def create_capital_table(data):
     total_ad = sum(d["ad"] for d in data_filtered)
     total_zust = sum(d["zustatek"] for d in data_filtered)
     
-    table += "─" * 130 + "\n"
+    table += "─" * 135 + "\n"
     table += f"{'CELKEM':<20} │ {total_qty:>8.0f} │ {total_pct:>6.2f}% │ {total_usd:>15.0f} │ {total_it:>11.0f} │ {total_ad:>11.0f} │ {total_zust:>15.0f}\n"
-    table += "═" * 130 + "\n"
-    table += f"Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    table += "═" * 135 + "\n"
+    table += f"🔄 Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     table += "```"
     
     return table
 
-# Aktualizace zprávy
+# ═══════════════════════════════════════════════════════════════
+# SPRÁVA ZPRÁV
+# ═══════════════════════════════════════════════════════════════
+
+def load_message_ids():
+    """Načtení uložených ID zpráv"""
+    if os.path.exists(MESSAGE_IDS_FILE):
+        try:
+            with open(MESSAGE_IDS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return {"capital_message": None}
+
+def save_message_ids(msg_ids):
+    """Uložení ID zpráv"""
+    with open(MESSAGE_IDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(msg_ids, f, ensure_ascii=False, indent=2)
+
 async def update_capital_display():
+    """Aktualizace kapitál zprávy"""
     try:
         channel = bot.get_channel(CHANNEL_ID)
         guild = bot.get_guild(SERVER_ID)
@@ -154,10 +177,10 @@ async def update_capital_display():
             try:
                 msg = await channel.fetch_message(int(msg_ids["capital_message"]))
                 await msg.edit(content=table_text)
-                print(f"✅ Kapitál zpráva aktualizována: {datetime.now()}")
+                print(f"✅ Kapitál zpráva aktualizována: {datetime.now().strftime('%H:%M:%S')}")
                 return
             except Exception as e:
-                print(f"⚠️ Chyba při editaci zprávy: {e}")
+                print(f"⚠️  Starou zprávu nelze najít: {e}")
                 msg_ids["capital_message"] = None
         
         # Pokud zpráva neexistuje, vytvoř novou
@@ -169,16 +192,24 @@ async def update_capital_display():
     except Exception as e:
         print(f"❌ Chyba při aktualizaci: {e}")
 
-# Background task - periodicka aktualizace
+# ═══════════════════════════════════════════════════════════════
+# BACKGROUND TASK
+# ═══════════════════════════════════════════════════════════════
+
 @tasks.loop(minutes=UPDATE_INTERVAL)
 async def update_capital_task():
+    """Periodická aktualizace kapitálu"""
     await update_capital_display()
 
 @update_capital_task.before_loop
 async def before_update_task():
+    """Čekání na připravení bota"""
     await bot.wait_until_ready()
 
-# Příkazy
+# ═══════════════════════════════════════════════════════════════
+# PŘÍKAZY
+# ═══════════════════════════════════════════════════════════════
+
 @bot.command(name="capital")
 async def capital_command(ctx):
     """Zobrazit aktuální kapitál"""
@@ -196,7 +227,7 @@ async def capital_refresh(ctx):
 @bot.command(name="capital-pin")
 @commands.has_permissions(administrator=True)
 async def capital_pin(ctx):
-    """Poslat novou kapitál zprávu do kanálu"""
+    """Poslat novou kapitál zprávu do kanálu (Admin only)"""
     data = get_capital_data()
     table_text = create_capital_table(data)
     msg = await ctx.send(table_text)
@@ -205,23 +236,45 @@ async def capital_pin(ctx):
     msg_ids["capital_message"] = str(msg.id)
     save_message_ids(msg_ids)
     
-    await ctx.send("✅ Kapitál zpráva nastavena!", ephemeral=True)
+    await ctx.send("✅ Nová kapitál zpráva nastavena!", ephemeral=True)
 
-# Spuštění
+# ═══════════════════════════════════════════════════════════════
+# SPUŠTĚNÍ
+# ═══════════════════════════════════════════════════════════════
+
 @bot.event
 async def on_ready():
+    """Bot je připraven"""
+    print("="*60)
     print(f"✅ Bot je online jako {bot.user}")
+    print("="*60)
+    
     guild = bot.get_guild(SERVER_ID)
     if guild:
-        print(f"✅ Server: {guild.name}")
+        print(f"✅ Server: {guild.name} ({SERVER_ID})")
         channel = bot.get_channel(CHANNEL_ID)
         if channel:
-            print(f"✅ Kanál: {channel.name}")
+            print(f"✅ Kanál: {channel.name} ({CHANNEL_ID})")
+            print(f"✅ Update interval: {UPDATE_INTERVAL} minut")
+            
             # První update
             await update_capital_display()
+            
             # Spusť background task
-            update_capital_task.start()
-            print("✅ Kapitál bot je připraven!")
+            if not update_capital_task.is_running():
+                update_capital_task.start()
+                print("✅ Background task spuštěn!")
+            
+            print("="*60)
+            print("✅ CAPITAL BOT JE PŘIPRAVEN!")
+            print("="*60)
+        else:
+            print(f"❌ Kanál {CHANNEL_ID} nenalezen!")
+    else:
+        print(f"❌ Server {SERVER_ID} nenalezen!")
 
 token = os.getenv("DISCORD_TOKEN")
-bot.run(token)
+if token:
+    bot.run(token)
+else:
+    print("❌ DISCORD_TOKEN není nastaven v .env!")
