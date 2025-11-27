@@ -121,6 +121,18 @@ def get_capital_data():
         traceback.print_exc()
         return None
 
+def get_part_name(chunk_idx, chunk_size, total_chunks):
+    """Vrátí název části (1. část), (2. část), atd."""
+    part_num = (chunk_idx // chunk_size) + 1
+    if total_chunks == 1:
+        return "Členové"
+    elif part_num == 1:
+        return "Členové (1. část)"
+    elif part_num == 2:
+        return "Členové (2. část)"
+    else:
+        return f"Členové ({part_num}. část)"
+
 async def send_embeds(ctx, data):
     """Pošli data jako barevné Discord embeds"""
     if not data:
@@ -149,15 +161,19 @@ async def send_embeds(ctx, data):
     
     await ctx.send(embed=main_embed)
     
-    # Divide data na stranky (po 10 hráčích na embed)
-    chunk_size = 10
+    # Divide data na stranky (po 9 hráčích na embed)
+    chunk_size = 9
+    total_chunks = (len(data) + chunk_size - 1) // chunk_size
+    
     for chunk_idx in range(0, len(data), chunk_size):
         chunk = data[chunk_idx:chunk_idx + chunk_size]
         
         # Vytvoř embed pro tuto skupinu
         color = discord.Color.from_rgb(52, 211, 153) if chunk_idx == 0 else discord.Color.from_rgb(59, 130, 246)
+        part_name = get_part_name(chunk_idx, chunk_size, total_chunks)
+        
         embed = discord.Embed(
-            title=f"👥 Hráči ({chunk_idx // chunk_size + 1})",
+            title=f"👥 {part_name}",
             color=color,
             timestamp=datetime.now()
         )
@@ -206,4 +222,4 @@ async def on_ready():
 
 token = os.getenv("DISCORD_TOKEN")
 if token:
-    bot.run(token),
+    bot.run(token)
