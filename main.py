@@ -72,12 +72,12 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        # SPRÁVNÉ: Čti B-I (bez C), řádky 2-32
-        # B=Jméno, D=Qty, E=%, F=USD, G=IT, H=AD, I=Zůstatek
-        all_cells = sheet.range('B2:I32')
+        # Čti sloupce B-I (bez C), řádky 3-30
+        # B=Jméno, D=Akcie, E=%, F=CASH, G=itemy, H=Adeny, I=Nárok
+        all_cells = sheet.range('B3:I30')
         print(f"✅ Got {len(all_cells)} cells")
         
-        if not len(all_cells) < 8:
+        if len(all_cells) >= 8:
             data = []
             for i in range(0, len(all_cells), 8):  # 8 sloupců (B-I)
                 row_data = all_cells[i:i+8]
@@ -90,25 +90,25 @@ def get_capital_data():
                         continue
                     
                     try:
-                        # B=name, C=skip, D=qty, E=pct, F=usd, G=it, H=ad, I=zustatek
-                        qty = clean_number(row_data[2].value if len(row_data) > 2 else 0)  # D
+                        # B=name, C=skip, D=akcie, E=pct, F=cash, G=itemy, H=adeny, I=narok
+                        akcie = clean_number(row_data[2].value if len(row_data) > 2 else 0)  # D
                         pct = clean_number(row_data[3].value if len(row_data) > 3 else 0)  # E
-                        usd = clean_number(row_data[4].value if len(row_data) > 4 else 0)  # F
-                        it = clean_number(row_data[5].value if len(row_data) > 5 else 0)   # G
-                        ad = clean_number(row_data[6].value if len(row_data) > 6 else 0)   # H
-                        zustatek = clean_number(row_data[7].value if len(row_data) > 7 else 0)  # I
+                        cash = clean_number(row_data[4].value if len(row_data) > 4 else 0)  # F
+                        itemy = clean_number(row_data[5].value if len(row_data) > 5 else 0)   # G
+                        adeny = clean_number(row_data[6].value if len(row_data) > 6 else 0)   # H
+                        narok = clean_number(row_data[7].value if len(row_data) > 7 else 0)  # I
                         
-                        if qty > 0 or name:
+                        if akcie > 0 or name:
                             data.append({
                                 "name": name,
-                                "qty": qty,
+                                "akcie": akcie,
                                 "pct": pct,
-                                "usd": usd,
-                                "it": it,
-                                "ad": ad,
-                                "zustatek": zustatek
+                                "cash": cash,
+                                "itemy": itemy,
+                                "adeny": adeny,
+                                "narok": narok
                             })
-                            print(f"✅ {name}: qty={qty}, pct={pct}%")
+                            print(f"✅ {name}: akcie={akcie}, pct={pct}%")
                     except Exception as e:
                         print(f"Parse error for {name}: {e}")
                         continue
@@ -127,22 +127,21 @@ def format_table(data):
     if not data:
         return "No data available"
     
-    # Zkrácená verze bez %
     lines = []
-    lines.append(f"{'Jmeno':<18} {'Qty':>6} {'USD':>14} {'IT':>12} {'AD':>12} {'Zůst':>12}")
+    lines.append(f"{'Jmeno':<18} {'Akcie':>6} {'CASH':>14} {'itemy':>12} {'Adeny':>12} {'Nárok':>12}")
     lines.append("-" * 85)
     
     for item in data:
-        lines.append(f"{item['name'][:17]:<18} {item['qty']:>6.0f} {item['usd']:>13.0f} {item['it']:>11.0f} {item['ad']:>11.0f} {item['zustatek']:>11.0f}")
+        lines.append(f"{item['name'][:17]:<18} {item['akcie']:>6.0f} {item['cash']:>13.0f} {item['itemy']:>11.0f} {item['adeny']:>11.0f} {item['narok']:>11.0f}")
     
-    total_qty = sum(d["qty"] for d in data)
-    total_usd = sum(d["usd"] for d in data)
-    total_it = sum(d["it"] for d in data)
-    total_ad = sum(d["ad"] for d in data)
-    total_zust = sum(d["zustatek"] for d in data)
+    total_akcie = sum(d["akcie"] for d in data)
+    total_cash = sum(d["cash"] for d in data)
+    total_itemy = sum(d["itemy"] for d in data)
+    total_adeny = sum(d["adeny"] for d in data)
+    total_narok = sum(d["narok"] for d in data)
     
     lines.append("-" * 85)
-    lines.append(f"{'CELKEM':<18} {total_qty:>6.0f} {total_usd:>13.0f} {total_it:>11.0f} {total_ad:>11.0f} {total_zust:>11.0f}")
+    lines.append(f"{'CELKEM':<18} {total_akcie:>6.0f} {total_cash:>13.0f} {total_itemy:>11.0f} {total_adeny:>11.0f} {total_narok:>11.0f}")
     
     return "\n".join(lines)
 
