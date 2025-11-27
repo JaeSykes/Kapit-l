@@ -6,7 +6,6 @@ import json
 import os
 from datetime import datetime
 
-# Setup
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -19,7 +18,7 @@ MESSAGE_IDS_FILE = "capital_message_ids.json"
 UPDATE_INTERVAL = 3
 
 print("="*60)
-print("🚀 CAPITAL BOT")
+print("CAPITAL BOT")
 print("="*60)
 
 def get_sheets_client():
@@ -31,7 +30,7 @@ def get_sheets_client():
         client = gspread.authorize(creds)
         return client
     except Exception as e:
-        print(f"❌ Chyba: {e}")
+        print(f"Chyba: {e}")
         return None
 
 def get_capital_data():
@@ -40,7 +39,7 @@ def get_capital_data():
         if not client:
             return None
         
-        sheet = client.open_by_key(SHEET_ID).worksheet("Kapitál new")
+        sheet = client.open_by_key(SHEET_ID).worksheet("Kapital new")
         rows = sheet.range('B4:I21')
         
         if not rows:
@@ -75,30 +74,20 @@ def get_capital_data():
         
         return data if data else None
     except Exception as e:
-        print(f"❌ Chyba: {e}")
+        print(f"Chyba: {e}")
         return None
 
-def create_capital_table(data):
+def format_table(data):
     if not data:
-        return "``````"
+        return "Neni data"
     
-    lines = []
-    lines.append("```
-    lines.append("KAPITAL CPD")
-    lines.append("=" * 135)
-    lines.append(f"{'Jmeno':<20} | {'Qty':>8} | {'%':>7} | {'$ Aden':>16} | {'-it':>12} | {'-ad':>12} | {'Zustatek':>16}")
-    lines.append("-" * 135)
+    result = "KAPITAL CPD\n"
+    result += "=" * 120 + "\n"
+    result += f"{'Jmeno':<20} {'Qty':>8} {'%':>7} {'$ Aden':>16} {'-it':>12} {'-ad':>12} {'Zustatek':>16}\n"
+    result += "-" * 120 + "\n"
     
     for item in data:
-        name_fmt = item["name"][:19].ljust(20)
-        qty_fmt = f"{item['qty']:>8.0f}"
-        pct_fmt = f"{item['pct']:>6.2f}%"
-        usd_fmt = f"{item['usd']:>15.0f}"
-        it_fmt = f"{item['it']:>11.0f}"
-        ad_fmt = f"{item['ad']:>11.0f}"
-        zust_fmt = f"{item['zustatek']:>15.0f}"
-        
-        lines.append(f"{name_fmt} | {qty_fmt} | {pct_fmt} | {usd_fmt} | {it_fmt} | {ad_fmt} | {zust_fmt}")
+        result += f"{item['name'][:19]:<20} {item['qty']:>8.0f} {item['pct']:>6.2f}% {item['usd']:>15.0f} {item['it']:>11.0f} {item['ad']:>11.0f} {item['zustatek']:>15.0f}\n"
     
     total_qty = sum(d["qty"] for d in data)
     total_pct = sum(d["pct"] for d in data)
@@ -107,13 +96,12 @@ def create_capital_table(data):
     total_ad = sum(d["ad"] for d in data)
     total_zust = sum(d["zustatek"] for d in data)
     
-    lines.append("-" * 135)
-    lines.append(f"{'CELKEM':<20} | {total_qty:>8.0f} | {total_pct:>6.2f}% | {total_usd:>15.0f} | {total_it:>11.0f} | {total_ad:>11.0f} | {total_zust:>15.0f}")
-    lines.append("=" * 135)
-    lines.append(f"Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    lines.append("```")
+    result += "-" * 120 + "\n"
+    result += f"{'CELKEM':<20} {total_qty:>8.0f} {total_pct:>6.2f}% {total_usd:>15.0f} {total_it:>11.0f} {total_ad:>11.0f} {total_zust:>15.0f}\n"
+    result += "=" * 120 + "\n"
+    result += f"Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     
-    return "\n".join(lines)
+    return result
 
 def load_message_ids():
     if os.path.exists(MESSAGE_IDS_FILE):
@@ -134,31 +122,31 @@ async def update_capital_display():
         guild = bot.get_guild(SERVER_ID)
         
         if not channel or not guild:
-            print("❌ Kanal nebo server nenalezen")
             return
         
         data = get_capital_data()
-        table_text = create_capital_table(data)
-        
+        if not data:
+            return
+            
+        table_text = format_table(data)
         msg_ids = load_message_ids()
         
         if msg_ids["capital_message"]:
             try:
                 msg = await channel.fetch_message(int(msg_ids["capital_message"]))
                 await msg.edit(content=table_text)
-                print(f"✅ Update: {datetime.now().strftime('%H:%M:%S')}")
+                print(f"Update: {datetime.now().strftime('%H:%M:%S')}")
                 return
-            except Exception as e:
-                print(f"⚠️  Stara zprava nenalezena: {e}")
+            except:
                 msg_ids["capital_message"] = None
         
         msg = await channel.send(table_text)
         msg_ids["capital_message"] = str(msg.id)
         save_message_ids(msg_ids)
-        print(f"✅ Nova zprava: {msg.id}")
+        print(f"Nova zprava: {msg.id}")
         
     except Exception as e:
-        print(f"❌ Chyba: {e}")
+        print(f"Chyba update: {e}")
 
 @tasks.loop(minutes=UPDATE_INTERVAL)
 async def update_capital_task():
@@ -171,53 +159,41 @@ async def before_update_task():
 @bot.command(name="capital")
 async def capital_command(ctx):
     data = get_capital_data()
-    table_text = create_capital_table(data)
-    await ctx.send(table_text)
-
-@bot.command(name="capital-refresh")
-@commands.has_permissions(administrator=True)
-async def capital_refresh(ctx):
-    await update_capital_display()
-    await ctx.send("✅ Aktualizovano!")
+    if data:
+        table_text = format_table(data)
+        await ctx.send(table_text)
 
 @bot.command(name="capital-pin")
 @commands.has_permissions(administrator=True)
 async def capital_pin(ctx):
     data = get_capital_data()
-    table_text = create_capital_table(data)
-    msg = await ctx.send(table_text)
-    
-    msg_ids = load_message_ids()
-    msg_ids["capital_message"] = str(msg.id)
-    save_message_ids(msg_ids)
-    
-    await ctx.send("✅ Postaveno!")
+    if data:
+        table_text = format_table(data)
+        msg = await ctx.send(table_text)
+        msg_ids = load_message_ids()
+        msg_ids["capital_message"] = str(msg.id)
+        save_message_ids(msg_ids)
+        await ctx.send("OK")
 
 @bot.event
 async def on_ready():
     print("="*60)
-    print(f"✅ Bot: {bot.user}")
+    print(f"Bot: {bot.user}")
     print("="*60)
     
     guild = bot.get_guild(SERVER_ID)
     if guild:
-        print(f"✅ Server: {guild.name}")
+        print(f"Server: {guild.name}")
         channel = bot.get_channel(CHANNEL_ID)
         if channel:
-            print(f"✅ Kanal: {channel.name}")
-            
+            print(f"Kanal: {channel.name}")
             await update_capital_display()
-            
             if not update_capital_task.is_running():
                 update_capital_task.start()
-                print("✅ Task spusten!")
-            
             print("="*60)
-            print("✅ BOT READY!")
+            print("READY")
             print("="*60)
 
 token = os.getenv("DISCORD_TOKEN")
 if token:
     bot.run(token)
-else:
-    print("❌ TOKEN neni nastaven!")
