@@ -18,7 +18,7 @@ SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
 SHEET_NAME = "Majetek sharing"
 
 print("="*60)
-print("CAPITAL BOT")
+print("CAPITAL BOT - CZM8")
 print("="*60)
 print(f"SHEET_ID: {SHEET_ID}")
 print(f"SHEET_NAME: {SHEET_NAME}")
@@ -76,8 +76,8 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        # Čti sloupce B-I (bez C), řádky 3-30
-        # B=Jméno, D=Akcie, E=%, F=CASH, G=itemy, H=Adeny, I=Nárok
+        # Čti sloupce B, D, E, I - řádky 3-30
+        # B=Jméno, D=Akcie, E=%, I=Nárok
         all_cells = sheet.range('B3:I30')
         print(f"✅ Got {len(all_cells)} cells")
         
@@ -94,12 +94,9 @@ def get_capital_data():
                         continue
                     
                     try:
-                        # B=name, C=skip, D=akcie, E=pct, F=cash, G=itemy, H=adeny, I=narok
+                        # B=name, D=akcie, E=pct, I=narok
                         akcie = clean_number(row_data[2].value if len(row_data) > 2 else 0)  # D
                         pct = clean_number(row_data[3].value if len(row_data) > 3 else 0)  # E
-                        cash = clean_number(row_data[4].value if len(row_data) > 4 else 0)  # F
-                        itemy = clean_number(row_data[5].value if len(row_data) > 5 else 0)   # G
-                        adeny = clean_number(row_data[6].value if len(row_data) > 6 else 0)   # H
                         narok = clean_number(row_data[7].value if len(row_data) > 7 else 0)  # I
                         
                         if akcie > 0 or name:
@@ -107,9 +104,6 @@ def get_capital_data():
                                 "name": name,
                                 "akcie": akcie,
                                 "pct": pct,
-                                "cash": cash,
-                                "itemy": itemy,
-                                "adeny": adeny,
                                 "narok": narok
                             })
                             print(f"✅ {name}: akcie={akcie}, pct={pct}%")
@@ -134,14 +128,12 @@ async def send_embeds(ctx, data):
         return
     
     total_akcie = sum(d["akcie"] for d in data)
-    total_cash = sum(d["cash"] for d in data)
-    total_itemy = sum(d["itemy"] for d in data)
-    total_adeny = sum(d["adeny"] for d in data)
+    total_pct = sum(d["pct"] for d in data)
     total_narok = sum(d["narok"] for d in data)
     
     # Hlavní embed s totály
     main_embed = discord.Embed(
-        title="💰 KAPITAL CPD",
+        title="💰 Kapitál CZM8",
         description="Přehled majetku hráčů",
         color=discord.Color.gold(),
         timestamp=datetime.now()
@@ -150,9 +142,7 @@ async def send_embeds(ctx, data):
     main_embed.add_field(
         name="📊 Celkový Přehled",
         value=f"**Akcie:** `{total_akcie:,.0f}`\n"
-              f"**CASH:** `{format_accounting(total_cash)}`\n"
-              f"**itemy:** `-{format_accounting(total_itemy)}`\n"
-              f"**Adeny:** `-{format_accounting(total_adeny)}`\n"
+              f"**%:** `{total_pct:,.1f}`\n"
               f"**Nárok:** `{format_accounting(total_narok)}`",
         inline=False
     )
@@ -174,15 +164,10 @@ async def send_embeds(ctx, data):
         
         # Přidej hráče do fieldu
         for item in chunk:
-            cash_fmt = format_accounting(item['cash'])
             narok_fmt = format_accounting(item['narok'])
-            itemy_fmt = f"-{format_accounting(item['itemy'])}" if item['itemy'] > 0 else "0"
-            adeny_fmt = f"-{format_accounting(item['adeny'])}" if item['adeny'] > 0 else "0"
             
             value = (f"**Akcie:** {item['akcie']:.0f}\n"
-                    f"**CASH:** {cash_fmt}\n"
-                    f"**itemy:** {itemy_fmt}\n"
-                    f"**Adeny:** {adeny_fmt}\n"
+                    f"**%:** {item['pct']:.2f}\n"
                     f"**Nárok:** {narok_fmt}")
             
             embed.add_field(
@@ -221,4 +206,4 @@ async def on_ready():
 
 token = os.getenv("DISCORD_TOKEN")
 if token:
-    bot.run(token)
+    bot.run(token),
