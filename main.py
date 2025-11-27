@@ -62,6 +62,10 @@ def clean_number(value):
     except:
         return 0.0
 
+def format_accounting(value):
+    """Formátuj číslo v účetním formátu: 10000 -> 10.000"""
+    return f"{int(value):,}".replace(',', '.')
+
 def get_capital_data():
     try:
         client = get_sheets_client()
@@ -132,7 +136,15 @@ def format_table(data):
     lines.append("-" * 85)
     
     for item in data:
-        lines.append(f"{item['name'][:17]:<18} {item['akcie']:>6.0f} {item['cash']:>13.0f} {item['itemy']:>11.0f} {item['adeny']:>11.0f} {item['narok']:>11.0f}")
+        # Formátuj CASH a Nárok v účetním formátu (tisícioddělovač)
+        cash_fmt = format_accounting(item['cash'])
+        narok_fmt = format_accounting(item['narok'])
+        
+        # Formátuj itemy a Adeny v záporném účetním formátu
+        itemy_fmt = f"-{format_accounting(item['itemy'])}" if item['itemy'] > 0 else "0"
+        adeny_fmt = f"-{format_accounting(item['adeny'])}" if item['adeny'] > 0 else "0"
+        
+        lines.append(f"{item['name'][:17]:<18} {item['akcie']:>6.0f} {cash_fmt:>14} {itemy_fmt:>12} {adeny_fmt:>12} {narok_fmt:>12}")
     
     total_akcie = sum(d["akcie"] for d in data)
     total_cash = sum(d["cash"] for d in data)
@@ -140,8 +152,14 @@ def format_table(data):
     total_adeny = sum(d["adeny"] for d in data)
     total_narok = sum(d["narok"] for d in data)
     
+    # Formátuj totály
+    total_cash_fmt = format_accounting(total_cash)
+    total_narok_fmt = format_accounting(total_narok)
+    total_itemy_fmt = f"-{format_accounting(total_itemy)}" if total_itemy > 0 else "0"
+    total_adeny_fmt = f"-{format_accounting(total_adeny)}" if total_adeny > 0 else "0"
+    
     lines.append("-" * 85)
-    lines.append(f"{'CELKEM':<18} {total_akcie:>6.0f} {total_cash:>13.0f} {total_itemy:>11.0f} {total_adeny:>11.0f} {total_narok:>11.0f}")
+    lines.append(f"{'CELKEM':<18} {total_akcie:>6.0f} {total_cash_fmt:>14} {total_itemy_fmt:>12} {total_adeny_fmt:>12} {total_narok_fmt:>12}")
     
     return "\n".join(lines)
 
