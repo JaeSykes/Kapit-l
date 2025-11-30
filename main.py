@@ -67,15 +67,16 @@ def clean_number(value):
 
 def format_accounting(value):
     """Formátuj číslo v účetním formátu: 10000 -> 10.000"""
-    return f"{int(value):,}".replace(',', '.')
+    num = clean_number(value)
+    return f"{int(num):,}".replace(',', '.')
 
 def format_decimal(value):
     """Formátuj číslo na desetinná čísla s tečkou jako oddělovačem: 12,34 -> 12.34"""
     if not value:
         return "0.00"
     try:
-        num = float(value)
-        return f"{num:.2f}".replace(',', '.')
+        num = clean_number(value)
+        return f"{num:.2f}"
     except:
         return "0.00"
 
@@ -89,7 +90,7 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        # Čti sloupce B až I - řádky 2-33
+        # Čti sloupce B až I - řádky 3-33
         all_cells = sheet.range('B3:I33')
         print(f"✅ Got {len(all_cells)} cells")
         
@@ -107,11 +108,12 @@ def get_capital_data():
                     
                     try:
                         # B=name (index 0), E=podíl (index 3), H=splátka dluhu (index 6), I=K výplatě (index 7)
-                        podil = row_data[3].value if len(row_data) > 3 else 0  # E - ponechej originální formát
+                        podil = row_data[3].value if len(row_data) > 3 else 0  # E - ponechej originální
                         splatka_dluhu = clean_number(row_data[6].value if len(row_data) > 6 else 0)  # H
                         k_vyplate = clean_number(row_data[7].value if len(row_data) > 7 else 0)  # I
                         
-                        if podil > 0 or name:
+                        # Kontroluj jen číslo (splatka, vyplate) nebo samotný název
+                        if splatka_dluhu > 0 or k_vyplate > 0 or name:
                             data.append({
                                 "name": name,
                                 "podil": podil,
@@ -160,7 +162,7 @@ async def send_embeds(ctx, data):
         await ctx.send("❌ Žádná data k zobrazení")
         return
     
-    total_podil = sum(d["podil"] for d in data)
+    total_podil = sum(clean_number(d["podil"]) for d in data)
     total_splatka = sum(d["splatka_dluhu"] for d in data)
     total_vyplate = sum(d["k_vyplate"] for d in data)
     
@@ -174,7 +176,7 @@ async def send_embeds(ctx, data):
     
     main_embed.add_field(
         name="📊 Celkový Přehled",
-        value=f"**Podíl:** `{format_accounting(total_podil)}`\n"
+        value=f"**Podíl:** `{format_decimal(total_podil)}`\n"
               f"**Splátka dluhu:** `{format_accounting(total_splatka)}`\n"
               f"**K výplatě:** `{format_accounting(total_vyplate)}`",
         inline=False
@@ -206,7 +208,7 @@ async def send_embeds(ctx, data):
         
         # Přidej hráče do fieldu
         for item in chunk:
-            podil_fmt = format_accounting(item['podil'])
+            podil_fmt = format_decimal(item['podil'])
             splatka_fmt = format_accounting(item['splatka_dluhu'])
             vyplate_fmt = format_accounting(item['k_vyplate'])
             
@@ -229,7 +231,7 @@ async def update_embeds(data):
         print("❌ Žádná data k aktualizaci")
         return
     
-    total_podil = sum(d["podil"] for d in data)
+    total_podil = sum(clean_number(d["podil"]) for d in data)
     total_splatka = sum(d["splatka_dluhu"] for d in data)
     total_vyplate = sum(d["k_vyplate"] for d in data)
     
@@ -260,8 +262,8 @@ async def update_embeds(data):
             )
             
             main_embed.add_field(
-                name="�š Celkový Přehled",
-                value=f"**Podíl:** `{format_accounting(total_podil)}`\n"
+                name="📊 Celkový Přehled",
+                value=f"**Podíl:** `{format_decimal(total_podil)}`\n"
                       f"**Splátka dluhu:** `{format_accounting(total_splatka)}`\n"
                       f"**K výplatě:** `{format_accounting(total_vyplate)}`",
                 inline=False
