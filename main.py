@@ -15,7 +15,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SERVER_ID = int(os.getenv("GUILD_ID", "1397286059406000249"))
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "1443610848391204955"))
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-SHEET_NAME = "Majetek sharing"
+SHEET_NAME = "Výplaty"
 
 # Globální proměnné pro automatickou aktualizaci
 message_ids = {}  # {f"{server_id}_{channel_id}": [main_msg_id, msg_id1, msg_id2, ...]}
@@ -79,9 +79,8 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        # Čti sloupce B, D, E, I - řádky 3-30
-        # B=Jméno, D=Akcie, E=%, I=Nárok
-        all_cells = sheet.range('B3:I30')
+        # Čti sloupce B až I - řádky 2-33
+        all_cells = sheet.range('B2:I33')
         print(f"✅ Got {len(all_cells)} cells")
         
         if len(all_cells) >= 8:
@@ -93,23 +92,23 @@ def get_capital_data():
                     name = str(row_data[0].value).strip()
                     
                     # Přeskočit prázdné řádky, nadpisy a sumy
-                    if not name or name.lower() in ['celkem', 'celk', 'suma', '', 'jmeno'] or 'celkem' in name.lower():
+                    if not name or name.lower() in ['celkem', 'celk', 'suma', '', 'hráč'] or 'celkem' in name.lower():
                         continue
                     
                     try:
-                        # B=name, D=akcie, E=pct, I=narok
-                        akcie = clean_number(row_data[2].value if len(row_data) > 2 else 0)  # D
-                        pct = clean_number(row_data[3].value if len(row_data) > 3 else 0)  # E
-                        narok = clean_number(row_data[7].value if len(row_data) > 7 else 0)  # I
+                        # B=name (index 0), E=podíl (index 3), H=splátka dluhu (index 6), I=K výplatě (index 7)
+                        podil = clean_number(row_data[3].value if len(row_data) > 3 else 0)  # E
+                        splatka_dluhu = clean_number(row_data[6].value if len(row_data) > 6 else 0)  # H
+                        k_vyplate = clean_number(row_data[7].value if len(row_data) > 7 else 0)  # I
                         
-                        if akcie > 0 or name:
+                        if podil > 0 or name:
                             data.append({
                                 "name": name,
-                                "akcie": akcie,
-                                "pct": pct,
-                                "narok": narok
+                                "podil": podil,
+                                "splatka_dluhu": splatka_dluhu,
+                                "k_vyplate": k_vyplate
                             })
-                            print(f"✅ {name}: akcie={akcie}, pct={pct}%")
+                            print(f"✅ {name}: podíl={podil}, splátka={splatka_dluhu}, k výplatě={k_vyplate}")
                     except Exception as e:
                         print(f"Parse error for {name}: {e}")
                         continue
@@ -128,13 +127,13 @@ def get_part_name(chunk_idx, chunk_size, total_chunks):
     """Vrátí název části (1. část), (2. část), atd."""
     part_num = (chunk_idx // chunk_size) + 1
     if total_chunks == 1:
-        return "Členové"
+        return "Výplaty hráčů"
     elif part_num == 1:
-        return "Členové (1. část)"
+        return "Výplaty hráčů (1. část)"
     elif part_num == 2:
-        return "Členové (2. část)"
+        return "Výplaty hráčů (2. část)"
     else:
-        return f"Členové ({part_num}. část)"
+        return f"Výplaty hráčů ({part_num}. část)"
 
 def create_embed(title, description, color, timestamp):
     """Vytvoří embed"""
@@ -151,23 +150,23 @@ async def send_embeds(ctx, data):
         await ctx.send("❌ Žádná data k zobrazení")
         return
     
-    total_akcie = sum(d["akcie"] for d in data)
-    total_pct = sum(d["pct"] for d in data)
-    total_narok = sum(d["narok"] for d in data)
+    total_podil = sum(d["podil"] for d in data)
+    total_splatka = sum(d["splatka_dluhu"] for d in data)
+    total_vyplate = sum(d["k_vyplate"] for d in data)
     
     # Hlavní embed s totály
     main_embed = create_embed(
-        "💰 Kapitál CZM8",
-        "Přehled majetku hráčů",
+        "💰 Výplaty CZM8",
+        "Přehled výplat hráčů",
         discord.Color.gold(),
         datetime.now()
     )
     
     main_embed.add_field(
         name="📊 Celkový Přehled",
-        value=f"**Akcie:** `{total_akcie:,.0f}`\n"
-              f"**%:** `{total_pct:,.1f}`\n"
-              f"**Nárok:** `{format_accounting(total_narok)}`",
+        value=f"**Podíl:** `{format_accounting(total_podil)}`\n"
+              f"**Splátka dluhu:** `{format_accounting(total_splatka)}`\n"
+              f"**K výplatě:** `{format_accounting(total_vyplate)}`",
         inline=False
     )
     
@@ -197,11 +196,13 @@ async def send_embeds(ctx, data):
         
         # Přidej hráče do fieldu
         for item in chunk:
-            narok_fmt = format_accounting(item['narok'])
+            podil_fmt = format_accounting(item['podil'])
+            splatka_fmt = format_accounting(item['splatka_dluhu'])
+            vyplate_fmt = format_accounting(item['k_vyplate'])
             
-            value = (f"**Akcie:** {item['akcie']:.0f}\n"
-                    f"**%:** {item['pct']:.2f}\n"
-                    f"**Nárok:** {narok_fmt}")
+            value = (f"**Podíl:** {podil_fmt}\n"
+                    f"**Splátka dluhu:** {splatka_fmt}\n"
+                    f"**K výplatě:** {vyplate_fmt}")
             
             embed.add_field(
                 name=f"🎮 {item['name']}",
@@ -218,9 +219,9 @@ async def update_embeds(data):
         print("❌ Žádná data k aktualizaci")
         return
     
-    total_akcie = sum(d["akcie"] for d in data)
-    total_pct = sum(d["pct"] for d in data)
-    total_narok = sum(d["narok"] for d in data)
+    total_podil = sum(d["podil"] for d in data)
+    total_splatka = sum(d["splatka_dluhu"] for d in data)
+    total_vyplate = sum(d["k_vyplate"] for d in data)
     
     try:
         # Najdi kanál a zprávy
@@ -242,17 +243,17 @@ async def update_embeds(data):
             main_msg = await channel.fetch_message(message_ids[key][0])
             
             main_embed = create_embed(
-                "💰 Kapitál CZM8",
-                "Přehled majetku hráčů",
+                "💰 Výplaty CZM8",
+                "Přehled výplat hráčů",
                 discord.Color.gold(),
                 datetime.now()
             )
             
             main_embed.add_field(
-                name="📊 Celkový Přehled",
-                value=f"**Akcie:** `{total_akcie:,.0f}`\n"
-                      f"**%:** `{total_pct:,.1f}`\n"
-                      f"**Nárok:** `{format_accounting(total_narok)}`",
+                name="�š Celkový Přehled",
+                value=f"**Podíl:** `{format_accounting(total_podil)}`\n"
+                      f"**Splátka dluhu:** `{format_accounting(total_splatka)}`\n"
+                      f"**K výplatě:** `{format_accounting(total_vyplate)}`",
                 inline=False
             )
             
@@ -287,11 +288,13 @@ async def update_embeds(data):
                 )
                 
                 for item in chunk:
-                    narok_fmt = format_accounting(item['narok'])
+                    podil_fmt = format_accounting(item['podil'])
+                    splatka_fmt = format_accounting(item['splatka_dluhu'])
+                    vyplate_fmt = format_accounting(item['k_vyplate'])
                     
-                    value = (f"**Akcie:** {item['akcie']:.0f}\n"
-                            f"**%:** {item['pct']:.2f}\n"
-                            f"**Nárok:** {narok_fmt}")
+                    value = (f"**Podíl:** {podil_fmt}\n"
+                            f"**Splátka dluhu:** {splatka_fmt}\n"
+                            f"**K výplatě:** {vyplate_fmt}")
                     
                     embed.add_field(
                         name=f"🎮 {item['name']}",
