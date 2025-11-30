@@ -69,6 +69,16 @@ def format_accounting(value):
     """Formátuj číslo v účetním formátu: 10000 -> 10.000"""
     return f"{int(value):,}".replace(',', '.')
 
+def format_decimal(value):
+    """Formátuj číslo na desetinná čísla s tečkou jako oddělovačem: 12,34 -> 12.34"""
+    if not value:
+        return "0.00"
+    try:
+        num = float(value)
+        return f"{num:.2f}".replace(',', '.')
+    except:
+        return "0.00"
+
 def get_capital_data():
     try:
         client = get_sheets_client()
@@ -80,7 +90,7 @@ def get_capital_data():
         print("✅ Sheet opened")
         
         # Čti sloupce B až I - řádky 2-33
-        all_cells = sheet.range('B2:I33')
+        all_cells = sheet.range('B3:I33')
         print(f"✅ Got {len(all_cells)} cells")
         
         if len(all_cells) >= 8:
@@ -97,7 +107,7 @@ def get_capital_data():
                     
                     try:
                         # B=name (index 0), E=podíl (index 3), H=splátka dluhu (index 6), I=K výplatě (index 7)
-                        podil = clean_number(row_data[3].value if len(row_data) > 3 else 0)  # E
+                        podil = row_data[3].value if len(row_data) > 3 else 0  # E - ponechej originální formát
                         splatka_dluhu = clean_number(row_data[6].value if len(row_data) > 6 else 0)  # H
                         k_vyplate = clean_number(row_data[7].value if len(row_data) > 7 else 0)  # I
                         
@@ -288,7 +298,7 @@ async def update_embeds(data):
                 )
                 
                 for item in chunk:
-                    podil_fmt = format_accounting(item['podil'])
+                    podil_fmt = format_decimal(item['podil'])
                     splatka_fmt = format_accounting(item['splatka_dluhu'])
                     vyplate_fmt = format_accounting(item['k_vyplate'])
                     
