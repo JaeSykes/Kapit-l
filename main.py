@@ -90,8 +90,8 @@ def get_capital_data():
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         print("✅ Sheet opened")
         
-        # Čti sloupce B až I - řádky 3-33
-        all_cells = sheet.range('B3:I33')
+        # Čti sloupce B až I - řádky 3-35
+        all_cells = sheet.range('B3:I35')
         print(f"✅ Got {len(all_cells)} cells")
         
         if len(all_cells) >= 8:
